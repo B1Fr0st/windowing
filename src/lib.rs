@@ -9,13 +9,20 @@ pub struct WindowInfo {
     pub pos: (i32, i32),
     pub size: (u32, u32),
 }
+
+#[cfg(target_os = "windows")]
+pub type Window = windows::Win32::Foundation::HWND;
+
+#[cfg(target_os = "linux")]
+pub type Window =  x11rb::protocol::xproto::Window;
+
 #[cfg(target_os = "linux")]
 mod platform {
     use crate::WindowInfo;
     use std::error::Error;
     use x11rb::{
         connection::Connection,
-        protocol::xproto::{AtomEnum, ConnectionExt, GetGeometryReply, PropMode, Window},
+        protocol::xproto::{AtomEnum, ConnectionExt, GetGeometryReply, PropMode},
         rust_connection::RustConnection,
     };
 
@@ -31,8 +38,8 @@ mod platform {
     /// Get the active (foreground) window ID.
     fn get_active_window(
         conn: &RustConnection,
-        root: Window,
-    ) -> Result<Window, Box<dyn std::error::Error>> {
+        root: crate::Window,
+    ) -> Result<crate::Window, Box<dyn std::error::Error>> {
         let net_active_window = conn
             .intern_atom(false, b"_NET_ACTIVE_WINDOW")?
             .reply()?
@@ -55,7 +62,7 @@ mod platform {
     }
 
     /// Get the geometry (x, y, width, height) of a window.
-    pub fn get_window_info(window: Window) -> Result<WindowInfo, Box<dyn std::error::Error>> {
+    pub fn get_window_info(window: crate::Window) -> Result<WindowInfo, Box<dyn std::error::Error>> {
         let (conn, _) = RustConnection::connect(None).unwrap();
         let geom = conn.get_geometry(window)?.reply()?;
         Ok(geom.into())
@@ -64,8 +71,8 @@ mod platform {
     /// Get a list of top-level windows from the root window (_NET_CLIENT_LIST)
     fn get_top_level_windows(
         conn: &RustConnection,
-        root: Window,
-    ) -> Result<Vec<Window>, Box<dyn Error>> {
+        root: crate::Window,
+    ) -> Result<Vec<crate::Window>, Box<dyn Error>> {
         let client_list_atom = conn.intern_atom(false, b"_NET_CLIENT_LIST")?.reply()?.atom;
         let prop = conn
             .get_property(false, root, client_list_atom, AtomEnum::WINDOW, 0, u32::MAX)?
@@ -80,7 +87,7 @@ mod platform {
     /// Get the process ID (PID) of a given window
     fn get_window_pid(
         conn: &RustConnection,
-        window: Window,
+        window: crate::Window,
     ) -> Result<Option<u32>, Box<dyn Error>> {
         let net_wm_pid_atom = conn.intern_atom(false, b"_NET_WM_PID")?.reply()?.atom;
 
@@ -102,7 +109,7 @@ mod platform {
     }
 
     /// Search for a window by process ID (exact match)
-    pub fn find_window_by_pid(target_pid: u32) -> Result<Option<Window>, Box<dyn Error>> {
+    pub fn find_window_by_pid(target_pid: u32) -> Result<Option<crate::Window>, Box<dyn Error>> {
         let (conn, screen_num) = RustConnection::connect(None)?;
         let screen = &conn.setup().roots[screen_num];
         let windows = get_top_level_windows(&conn, screen.root)?;
@@ -119,7 +126,7 @@ mod platform {
     }
 
     /// Search for all windows belonging to a specific process ID
-    pub fn find_windows_by_pid(target_pid: u32) -> Result<Vec<Window>, Box<dyn Error>> {
+    pub fn find_windows_by_pid(target_pid: u32) -> Result<Vec<crate::Window>, Box<dyn Error>> {
         let (conn, screen_num) = RustConnection::connect(None)?;
         let screen = &conn.setup().roots[screen_num];
         let windows = get_top_level_windows(&conn, screen.root)?;
@@ -144,7 +151,7 @@ mod platform {
         get_window_pid(&conn, active_window)
     }
 
-    pub fn hide_window(window: Window) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn hide_window(window: crate::Window) -> Result<(), Box<dyn std::error::Error>> {
         let (conn, _) = RustConnection::connect(None)?;
         // Unmap the window first
         conn.unmap_window(window)?;
@@ -199,8 +206,6 @@ mod platform {
         process_id: u32,
         windows: Vec<HWND>,
     }
-    
-    type Window = HWND;
 
     // Callback function for EnumWindows
     unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
@@ -218,7 +223,7 @@ mod platform {
         TRUE // Continue enumeration
     }
 
-    pub fn find_windows_by_pid(process_id: u32) -> Result<Vec<Window>, Box<dyn std::error::Error>> {
+    pub fn find_windows_by_pid(process_id: u32) -> Result<Vec<crate::Window>, Box<dyn std::error::Error>> {
         let mut data = EnumWindowsData {
             process_id,
             windows: Vec::new(),
@@ -234,7 +239,7 @@ mod platform {
         Ok(data.windows)
     }
 
-    pub fn find_window_by_pid(process_id: u32) -> Result<Option<Window>, Box<dyn std::error::Error>> {
+    pub fn find_window_by_pid(process_id: u32) -> Result<Option<crate::Window>, Box<dyn std::error::Error>> {
         let windows = find_windows_by_pid(process_id)?;
 
         for &hwnd in &windows {
@@ -253,7 +258,7 @@ mod platform {
         Ok(windows.first().copied())
     }
 
-    pub fn get_window_info(window:Window) -> Result<Option<WindowInfo>, Box<dyn std::error::Error>> {
+    pub fn get_window_info(window:crate::Window) -> Result<Option<WindowInfo>, Box<dyn std::error::Error>> {
         let mut window_rect = RECT {
             left: 0,
             top: 0,
@@ -274,7 +279,7 @@ mod platform {
         Ok(Some(pid))
     }
 
-    pub fn hide_window(window:Window) -> Result<(), Box<dyn std::error::Error>>{
+    pub fn hide_window(window:crate::Window) -> Result<(), Box<dyn std::error::Error>>{
         unsafe {
         ShowWindow(window, SW_HIDE).ok()?;
         SetWindowLongA(window, GWL_EXSTYLE, WS_EX_TOOLWINDOW.0 as i32);
@@ -284,5 +289,7 @@ mod platform {
     }
 }
 
-//#[cfg(any(target_os="windows",target_os="linux"))]
+#[cfg(any(target_os="windows",target_os="linux"))]
 pub use platform::*;
+
+
