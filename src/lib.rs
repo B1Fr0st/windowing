@@ -198,6 +198,8 @@ mod platform {
         process_id: u32,
         windows: Vec<HWND>,
     }
+    
+    type Window = HWND;
 
     // Callback function for EnumWindows
     unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
@@ -215,7 +217,7 @@ mod platform {
         TRUE // Continue enumeration
     }
 
-    pub fn find_windows_by_pid(process_id: u32) -> Result<Vec<HWND>, Box<dyn std::error::Error>> {
+    pub fn find_windows_by_pid(process_id: u32) -> Result<Vec<Window>, Box<dyn std::error::Error>> {
         let mut data = EnumWindowsData {
             process_id,
             windows: Vec::new(),
@@ -231,7 +233,7 @@ mod platform {
         Ok(data.windows)
     }
 
-    pub fn find_window_by_pid(process_id: u32) -> Result<Option<HWND>, Box<dyn std::error::Error>> {
+    pub fn find_window_by_pid(process_id: u32) -> Result<Option<Window>, Box<dyn std::error::Error>> {
         let windows = find_windows_by_pid(process_id)?;
 
         for &hwnd in &windows {
@@ -250,7 +252,7 @@ mod platform {
         Ok(windows.first().copied())
     }
 
-    pub fn get_window_info(window:HWND) -> Result<Option<WindowInfo>, Box<dyn std::error::Error>> {
+    pub fn get_window_info(window:Window) -> Result<Option<WindowInfo>, Box<dyn std::error::Error>> {
         let mut window_rect = RECT {
             left: 0,
             top: 0,
@@ -271,7 +273,7 @@ mod platform {
         Ok(Some(pid))
     }
 
-    pub fn hide_window(window:HWND) -> Result<(), Box<dyn std::error::Error>>{
+    pub fn hide_window(window:Window) -> Result<(), Box<dyn std::error::Error>>{
         unsafe {
         ShowWindow(window, SW_HIDE).ok()?;
         SetWindowLongA(window, GWL_EXSTYLE, WS_EX_TOOLWINDOW.0 as i32);
