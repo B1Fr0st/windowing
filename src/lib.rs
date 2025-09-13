@@ -4,6 +4,7 @@
 /// find_windows_by_pid(target_pid) -> returns all the given process's matching Windows
 /// get_active_window_pid() -> returns the active window's pid
 
+#[derive(Debug, Copy, Clone)]
 pub struct WindowInfo {
     pub pos: (i32, i32),
     pub size: (u32, u32),
